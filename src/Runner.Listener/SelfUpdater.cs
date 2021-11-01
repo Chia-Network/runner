@@ -69,7 +69,7 @@ namespace GitHub.Runner.Listener
 
                 // Copy dotnet runtime and externals of current runner to a temp folder
                 // So we can re-use them with trimmed runner package, if possible.
-                // This process is best effort, if we can't use trimmed runner package, 
+                // This process is best effort, if we can't use trimmed runner package,
                 // we will just go with the full package.
                 var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
                 _cloneAndCalculateContentHashTask = CloneAndCalculateAssetsHash(_dotnetRuntimeCloneDirectory, _externalsCloneDirectory, linkedTokenSource.Token);
@@ -80,76 +80,8 @@ namespace GitHub.Runner.Listener
                     return false;
                 }
 
-                Trace.Info($"An update is available.");
-                _updateTrace.Enqueue($"RunnerPlatform: {_targetPackage.Platform}");
-
-                // Print console line that warn user not shutdown runner.
-                await UpdateRunnerUpdateStateAsync("Runner update in progress, do not shutdown runner.");
-                await UpdateRunnerUpdateStateAsync($"Downloading {_targetPackage.Version} runner");
-
-                if (_targetPackage.TrimmedPackages?.Count > 0)
-                {
-                    // wait for cloning assets task to finish only if we have trimmed packages
-                    await _cloneAndCalculateContentHashTask;
-                }
-                else
-                {
-                    linkedTokenSource.Cancel();
-                    try
-                    {
-                        await _cloneAndCalculateContentHashTask;
-                    }
-                    catch (Exception ex)
-                    {
-                        Trace.Info($"Ingore errors after cancelling cloning assets task: {ex}");
-                    }
-                }
-
-                await DownloadLatestRunner(token, updateMessage.TargetVersion);
-                Trace.Info($"Download latest runner and unzip into runner root.");
-
-                // wait till all running job finish
-                await UpdateRunnerUpdateStateAsync("Waiting for current job finish running.");
-
-                await jobDispatcher.WaitAsync(token);
-                Trace.Info($"All running job has exited.");
-
-                // We need to keep runner backup around for macOS until we fixed https://github.com/actions/runner/issues/743
-                // delete runner backup
-                var stopWatch = Stopwatch.StartNew();
-                DeletePreviousVersionRunnerBackup(token);
-                Trace.Info($"Delete old version runner backup.");
-                stopWatch.Stop();
-                // generate update script from template
-                _updateTrace.Enqueue($"DeleteRunnerBackupTime: {stopWatch.ElapsedMilliseconds}ms");
-                await UpdateRunnerUpdateStateAsync("Generate and execute update script.");
-
-                string updateScript = GenerateUpdateScript(restartInteractiveRunner);
-                Trace.Info($"Generate update script into: {updateScript}");
-
-
-                // For L0, we will skip execute update script.
-                if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("_GITHUB_ACTION_EXECUTE_UPDATE_SCRIPT")))
-                {
-                    // kick off update script
-                    Process invokeScript = new Process();
-#if OS_WINDOWS
-                    invokeScript.StartInfo.FileName = WhichUtil.Which("cmd.exe", trace: Trace);
-                    invokeScript.StartInfo.Arguments = $"/c \"{updateScript}\"";
-#elif (OS_OSX || OS_LINUX)
-                    invokeScript.StartInfo.FileName = WhichUtil.Which("bash", trace: Trace);
-                    invokeScript.StartInfo.Arguments = $"\"{updateScript}\"";
-#endif
-                    invokeScript.Start();
-                    Trace.Info($"Update script start running");
-                }
-
-                totalUpdateTime.Stop();
-
-                _updateTrace.Enqueue($"TotalUpdateTime: {totalUpdateTime.ElapsedMilliseconds}ms");
-                await UpdateRunnerUpdateStateAsync("Runner will exit shortly for update, should be back online within 10 seconds.");
-
-                return true;
+                Trace.Info($"An update is available, but we're going to skip it!");
+                return false;
             }
             catch (Exception ex)
             {
@@ -294,12 +226,12 @@ namespace GitHub.Runner.Listener
                         archiveFile = Path.Combine(HostContext.GetDirectory(WellKnownDirectory.Root), $"runner{targetVersion}.tar.gz");
                     }
 
-                    if (File.Exists(archiveFile)) 
+                    if (File.Exists(archiveFile))
                     {
                         _updateTrace.Enqueue($"Mocking update with file: '{archiveFile}' and targetVersion: '{targetVersion}', nothing is downloaded");
                         _terminal.WriteLine($"Mocking update with file: '{archiveFile}' and targetVersion: '{targetVersion}', nothing is downloaded");
                     }
-                    else 
+                    else
                     {
                         archiveFile = null;
                         _terminal.WriteLine($"Mock runner archive not found at {archiveFile} for target version {targetVersion}, proceeding with download instead");
