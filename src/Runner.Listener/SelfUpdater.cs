@@ -65,53 +65,8 @@ namespace GitHub.Runner.Listener
                     return false;
                 }
 
-                Trace.Info($"An update is available.");
-                _updateTrace.Add($"RunnerPlatform: {_targetPackage.Platform}");
-
-                // Print console line that warn user not shutdown runner.
-                await UpdateRunnerUpdateStateAsync("Runner update in progress, do not shutdown runner.");
-                await UpdateRunnerUpdateStateAsync($"Downloading {_targetPackage.Version} runner");
-
-                await DownloadLatestRunner(token);
-                Trace.Info($"Download latest runner and unzip into runner root.");
-
-                // wait till all running job finish
-                await UpdateRunnerUpdateStateAsync("Waiting for current job finish running.");
-
-                await jobDispatcher.WaitAsync(token);
-                Trace.Info($"All running job has exited.");
-
-                // We need to keep runner backup around for macOS until we fixed https://github.com/actions/runner/issues/743
-                // delete runner backup
-                var stopWatch = Stopwatch.StartNew();
-                DeletePreviousVersionRunnerBackup(token);
-                Trace.Info($"Delete old version runner backup.");
-                stopWatch.Stop();
-                // generate update script from template
-                _updateTrace.Add($"DeleteRunnerBackupTime: {stopWatch.ElapsedMilliseconds}ms");
-                await UpdateRunnerUpdateStateAsync("Generate and execute update script.");
-
-                string updateScript = GenerateUpdateScript(restartInteractiveRunner);
-                Trace.Info($"Generate update script into: {updateScript}");
-
-                // kick off update script
-                Process invokeScript = new Process();
-#if OS_WINDOWS
-            invokeScript.StartInfo.FileName = WhichUtil.Which("cmd.exe", trace: Trace);
-            invokeScript.StartInfo.Arguments = $"/c \"{updateScript}\"";
-#elif (OS_OSX || OS_LINUX)
-                invokeScript.StartInfo.FileName = WhichUtil.Which("bash", trace: Trace);
-                invokeScript.StartInfo.Arguments = $"\"{updateScript}\"";
-#endif
-                invokeScript.Start();
-                Trace.Info($"Update script start running");
-
-                totalUpdateTime.Stop();
-
-                _updateTrace.Add($"TotalUpdateTime: {totalUpdateTime.ElapsedMilliseconds}ms");
-                await UpdateRunnerUpdateStateAsync("Runner will exit shortly for update, should be back online within 10 seconds.");
-
-                return true;
+                Trace.Info($"An update is available, but we're going to skip it!");
+                return false;
             }
             catch (Exception ex)
             {
